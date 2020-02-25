@@ -32,6 +32,17 @@
 #include <dirname.h>
 #include <xalloc.h>
 
+/* ========================================================================
+ * Implement CRC function using inline assembly instructions instead of 
+ * crc_32_tab in aarch64.
+ */
+#ifdef __aarch64__
+#  define CRC32D(crc, value) __asm__("crc32x %w[c], %w[c], %x[v]":[c]"+r"(crc):[v]"r"(value))
+#  define CRC32W(crc, value) __asm__("crc32w %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
+#  define CRC32H(crc, value) __asm__("crc32h %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
+#  define CRC32B(crc, value) __asm__("crc32b %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))                                                                   
+#endif
+
 #ifndef CHAR_BIT
 #  define CHAR_BIT 8
 #endif
@@ -41,6 +52,7 @@ static int write_buffer (int, voidp, unsigned int);
 /* ========================================================================
  * Table of CRC-32's of all single-byte values (made by makecrc.c)
  */
+#ifndef __aarch64__
 static const ulg crc_32_tab[] = {
   0x00000000L, 0x77073096L, 0xee0e612cL, 0x990951baL, 0x076dc419L,
   0x706af48fL, 0xe963a535L, 0x9e6495a3L, 0x0edb8832L, 0x79dcb8a4L,
@@ -95,6 +107,7 @@ static const ulg crc_32_tab[] = {
   0x5d681b02L, 0x2a6f2b94L, 0xb40bbe37L, 0xc30c8ea1L, 0x5a05df1bL,
   0x2d02ef8dL
 };
+#endif
 
 /* ===========================================================================
  * Copy input to output unchanged: zcat == cat with --force.
@@ -132,7 +145,42 @@ ulg updcrc(s, n)
     register ulg c;         /* temporary variable */
 
     static ulg crc = (ulg)0xffffffffL; /* shift register contents */
+#ifdef __aarch64__
+    register const uint8_t  *buf1;
+    register const uint16_t *buf2;
+    register const uint32_t *buf4;
+    register const uint64_t *buf8;
+    int64_t length = (int64_t)n;
+    buf8 = (const  uint64_t *)(const void *)s;
 
+    if (s == NULL) {
+        c = 0xffffffffL;
+    } else {
+        c = crc;
+        while(length >= sizeof(uint64_t)) {
+            CRC32D(c, *buf8++); 
+            length -= sizeof(uint64_t);
+        }
+
+        buf4 = (const uint32_t *)(const void *)buf8;
+        if (length >= sizeof(uint32_t)) {
+            CRC32W(c, *buf4++);
+            length -= sizeof(uint32_t);
+        }
+
+        buf2 = (const uint16_t *)(const void *)buf4;
+        if(length >= sizeof(uint16_t)) {
+            CRC32H(c, *buf2++);
+            length -= sizeof(uint16_t);
+        }
+
+        buf1 = (const uint8_t *)(const void *)buf2;
+        if (length >= sizeof(uint8_t)) {
+            CRC32B(c, *buf1);
+            length -= sizeof(uint8_t);
+        }
+    }
+#else
     if (s == NULL) {
         c = 0xffffffffL;
     } else {
@@ -141,6 +189,7 @@ ulg updcrc(s, n)
             c = crc_32_tab[((int)c ^ (*s++)) & 0xff] ^ (c >> 8);
         } while (--n);
     }
+#endif
     crc = c;
     return c ^ 0xffffffffL;       /* (instead of ~c for 64-bit machines) */
 }

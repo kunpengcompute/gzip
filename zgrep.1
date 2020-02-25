@@ -1,0 +1,51 @@
+.TH ZGREP 1
+.SH NAME
+zgrep \- search possibly compressed files for a regular expression
+.SH SYNOPSIS
+.B zgrep
+[ grep_options ]
+.BI  [\ -e\ ] " pattern"
+.IR filename ".\|.\|."
+.SH DESCRIPTION
+.I Zgrep
+invokes
+.I grep
+on compressed or gzipped files.
+All options specified are passed directly to
+.IR grep .
+If no file is specified, then the standard input is decompressed
+if necessary and fed to grep.
+Otherwise the given files are uncompressed if necessary and fed to
+.IR grep .
+.PP
+If the GREP environment variable is set,
+.I zgrep
+uses it as the
+.I grep
+program to be invoked.
+.SH "EXIT STATUS"
+Exit status is 0 for a match, 1 for no matches, and 2 if trouble.
+.SH BUGS
+.PP
+The following
+.I grep
+options are not supported:
+.B --dereference-recursive
+.RB ( \-R ),
+.B --directories
+.RB ( \-d ),
+.BR --exclude ,
+.BR --exclude-from ,
+.BR --exclude-dir ,
+.BR --include ,
+.B --null
+.RB ( \-Z ),
+.B --null-data
+.RB ( \-z ),
+and
+.B --recursive
+.RB ( \-r ).
+.SH AUTHOR
+Charles Levert (charles@comm.polymtl.ca)
+.SH "SEE ALSO"
+grep(1), gzexe(1), gzip(1), zdiff(1), zforce(1), zmore(1), znew(1)

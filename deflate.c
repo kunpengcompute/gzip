@@ -392,6 +392,9 @@ longest_match(IPos cur_match)
     register int len;                           /* length of current match */
     int best_len = prev_length;                 /* best match length so far */
     IPos limit = strstart > (IPos)MAX_DIST ? strstart - (IPos)MAX_DIST : NIL;
+#ifdef __aarch64__
+    IPos next_match;
+#endif
     /* Stop when cur_match becomes <= limit. To simplify the code,
      * we prevent matches with the string of window index 0.
      */
@@ -425,6 +428,10 @@ longest_match(IPos cur_match)
     do {
         Assert(cur_match < strstart, "no future");
         match = window + cur_match;
+#ifdef __aarch64__
+        next_match = prev[cur_match & WMASK];
+        __asm__("PRFM   PLDL1STRM, [%0]"::"r"(&(prev[next_match & WMASK])));
+#endif
 
         /* Skip to next match if the match length cannot increase
          * or if the match length is less than 2:
@@ -502,8 +509,14 @@ longest_match(IPos cur_match)
             scan_end   = scan[best_len];
 #endif
         }
-    } while ((cur_match = prev[cur_match & WMASK]) > limit
-             && --chain_length != 0);
+    } 
+#ifdef __aarch64__
+    while ((cur_match = next_match) > limit
+            && --chain_length != 0);
+#else
+    while ((cur_match = prev[cur_match & WMASK]) > limit
+            && --chain_length != 0);
+#endif
 
     return best_len;
 }
@@ -788,7 +801,20 @@ off_t deflate()
             lookahead -= prev_length-1;
             prev_length -= 2;
             RSYNC_ROLL(strstart, prev_length+1);
+
+            while (prev_length >= 4) {
+                prev_length -= 4;
+                strstart++;
+                INSERT_STRING(strstart, hash_head);
+                strstart++;
+                INSERT_STRING(strstart, hash_head);
+                strstart++;
+                INSERT_STRING(strstart, hash_head);
+                strstart++;
+                INSERT_STRING(strstart, hash_head);
+            }
             do {
+                if (prev_length == 0) break;
                 strstart++;
                 INSERT_STRING(strstart, hash_head);
                 /* strstart never exceeds WSIZE-MAX_MATCH, so there are

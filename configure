@@ -14555,6 +14555,19 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
            ;;
 
          arm* | aarch64 )
+	 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#if defined __ARM_NEON__ || __ARM_NEON
+                   int ok;
+                  #else
+                   error fail
+                  #endif
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  CFLAGS="$CFLAGS -march=armv8-a+crc"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
            # Assume arm with EABI.
            # On arm64 systems, the C compiler may be generating code in one of
            # these ABIs:
